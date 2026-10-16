@@ -1,0 +1,1092 @@
+import { ListView, ScrollView } from "std-widgets.slint";
+import {
+    Theme, Field, Btn, Banner, Label, Heading, DetailRow, Glyph, PlusIcon, CopyIcon, Mark, Chip,
+    Switch, Segmented, Stepper, PathField,
+} from "components.slint";
+
+// One row of the entry list. Only non-secret fields ever enter the list model.
+export struct EntryRow {
+    title: string,
+    subtitle: string,
+    server: bool,
+    icon: image,
+    has-icon: bool,
+}
+
+export component MainWindow inherits Window {
+    title: "Argus Vault";
+    background: Theme.bg;
+    default-font-size: 14px;
+    min-width: 800px;
+    min-height: 560px;
+    preferred-width: 1040px;
+    preferred-height: 700px;
+
+    // ───────────── Unlock screen ─────────────
+    in-out property <string> vault-path;
+    in-out property <string> keyfile-path;
+    in-out property <string> password;
+    in-out property <string> confirm-password;
+    // True while the user is creating a vault (shows the confirmation field).
+    in-out property <bool> creating: false;
+    in property <bool> busy;
+    in property <string> error;
+    // Why the vault locked itself ("Locked after a period of inactivity."), shown on the unlock screen.
+    in property <string> notice;
+    in property <int> strength-score;
+    in property <string> strength-label;
+    in property <bool> unlocked;
+    // Whether the window is shielded from screenshots, and how.
+    in property <string> capture-status;
+    in property <bool> capture-ok;
+
+    // ───────────── Vault view ─────────────
+    in property <[EntryRow]> entries;
+    in property <string> count-label;
+    in-out property <int> selected: -1;
+    // 0 = all, 1 = servers, 2 = websites.
+    in-out property <int> filter: 0;
+    // Right-hand pane: 0 = entry detail (or empty state), 1 = editor, 2 = settings, 3 = generator.
+    in-out property <int> pane: 0;
+    in property <string> detail-title;
+    in property <bool> detail-server;
+    in property <image> detail-icon;
+    in property <bool> detail-has-icon;
+    in property <string> detail-host;
+    in property <string> detail-username;
+    in property <string> detail-url;
+    in property <bool> detail-has-notes;
+    // Hold the password / notes only while the user has them revealed.
+    in property <string> revealed;
+    in property <string> notes-revealed;
+    in-out property <bool> confirm-delete: false;
+    // True while the pointer is over a copy-on-click row (drives the "Click to copy" hint).
+    in-out property <bool> row-hover: false;
+    // One-line feedback for clipboard actions ("Copied. Clears in 20 s.").
+    in property <string> status;
+    // Shown after an import until dismissed.
+    in property <string> import-notice;
+
+    // ───────────── Entry editor ─────────────
+    in property <bool> form-editing;
+    in-out property <bool> form-server: true;
+    in-out property <string> form-title;
+    // Host for a server, URL for a website.
+    in-out property <string> form-target;
+    in-out property <string> form-username;
+    in-out property <string> form-password;
+    in-out property <string> form-notes;
+
+    // ───────────── Settings ─────────────
+    in-out property <string> settings-autolock;
+    in-out property <string> settings-clipboard;
+    in-out property <bool> settings-lock-min: true;
+    in property <string> settings-message;
+    in property <string> settings-error;
+    in property <bool> settings-busy;
+    in-out property <string> cred-current;
+    in-out property <string> cred-current-keyfile;
+    in-out property <string> cred-new;
+    in-out property <string> cred-confirm;
+    in-out property <string> cred-new-keyfile;
+
+    // ───────────── Generator ─────────────
+    // 0 = password, 1 = passphrase.
+    in-out property <int> gen-mode: 0;
+    in-out property <int> gen-length: 24;
+    in-out property <bool> gen-lower: true;
+    in-out property <bool> gen-upper: true;
+    in-out property <bool> gen-digits: true;
+    in-out property <bool> gen-symbols: true;
+    in-out property <bool> gen-ambiguous: false;
+    in-out property <int> gen-words: 6;
+    in-out property <string> gen-separator: "-";
+    in-out property <bool> gen-capitalize: true;
+    in-out property <bool> gen-number: true;
+    in property <string> gen-result;
+    in property <string> gen-entropy;
+    in property <string> gen-error;
+    // Opened from the entry editor: offer "Use this password" instead of "Copy".
+    in property <bool> gen-for-form;
+
+    callback submit(string, string, string, string, bool);
+    callback password-edited(string);
+    callback browse-vault();
+    callback browse-keyfile();
+    callback new-keyfile();
+    callback lock();
+    callback search-edited(string);
+    callback select(int);
+    callback set-filter(int);
+    callback toggle-reveal();
+    callback toggle-notes();
+    callback copy-password();
+    callback copy-username();
+    callback copy-host();
+    callback copy-row-password(int);
+    callback new-entry();
+    callback edit-selected();
+    callback save-entry();
+    callback cancel-form();
+    callback delete-selected();
+    callback open-settings();
+    callback save-settings();
+    callback change-credentials();
+    callback browse-cred-keyfile(int);
+    callback open-generator(bool);
+    callback regenerate();
+    callback use-generated();
+    callback copy-generated();
+    callback close-generator();
+    callback import-file();
+    callback dismiss-import();
+
+    changed gen-mode => { root.regenerate(); }
+    changed gen-length => { root.regenerate(); }
+    changed gen-lower => { root.regenerate(); }
+    changed gen-upper => { root.regenerate(); }
+    changed gen-digits => { root.regenerate(); }
+    changed gen-symbols => { root.regenerate(); }
+    changed gen-ambiguous => { root.regenerate(); }
+    changed gen-words => { root.regenerate(); }
+    changed gen-capitalize => { root.regenerate(); }
+    changed gen-number => { root.regenerate(); }
+
+    // ───────────── Unlock screen ─────────────
+    if !root.unlocked: ScrollView {
+        VerticalLayout {
+            padding: 24px;
+            alignment: center;
+            HorizontalLayout {
+                alignment: center;
+                Rectangle {
+                    width: min(460px, root.width - 48px);
+                    height: card.preferred-height;
+                    background: Theme.surface;
+                    border-radius: 12px;
+                    border-width: 1px;
+                    border-color: Theme.border;
+                    card := VerticalLayout {
+                        padding: 32px;
+                        spacing: 14px;
+
+                        HorizontalLayout {
+                            spacing: 14px;
+                            alignment: start;
+                            Mark { y: 0px; }
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 2px;
+                                Text {
+                                    text: "Argus Vault";
+                                    color: Theme.text;
+                                    font-size: 22px;
+                                    font-weight: 700;
+                                }
+                                Label { text: root.creating ? "Create a new vault" : "Offline password manager"; }
+                            }
+                        }
+
+                        // Keyboard: Tab / Shift+Tab move between fields and buttons; Enter in a field
+                        // jumps to the next one, and Enter in the last field submits.
+                        PathField {
+                            label: root.creating ? "Where to save the vault" : "Vault file";
+                            placeholder: "C:\\path\\to\\vault.argus";
+                            text <=> root.vault-path;
+                            init => {
+                                self.focus();
+                            }
+                            accepted => {
+                                keyfile-field.focus();
+                            }
+                            browse => {
+                                root.browse-vault();
+                            }
+                        }
+                        keyfile-field := PathField {
+                            label: "Keyfile (optional)";
+                            placeholder: "C:\\path\\to\\vault.argkey";
+                            text <=> root.keyfile-path;
+                            accepted => {
+                                password-field.focus();
+                            }
+                            browse => {
+                                root.browse-keyfile();
+                            }
+                        }
+                        if root.creating: Btn {
+                            label: "Generate a new keyfile…";
+                            quiet: true;
+                            height: 32px;
+                            active: !root.busy;
+                            clicked => {
+                                root.new-keyfile();
+                            }
+                        }
+                        if root.keyfile-path != "": Banner {
+                            message: "Keep this keyfile safe and back it up. If you lose it, the vault cannot be opened — there is no recovery.";
+                            error: true;
+                        }
+                        VerticalLayout {
+                            spacing: 8px;
+                            password-field := Field {
+                                label: root.creating ? "Master password" : "Master password";
+                                placeholder: "At least 10 characters";
+                                secret: true;
+                                text <=> root.password;
+                                edited(t) => {
+                                    root.password-edited(t);
+                                }
+                                accepted => {
+                                    // While creating, Tab moves on to the confirmation field.
+                                    if (!root.creating && !root.busy) {
+                                        root.submit(root.vault-path, root.keyfile-path, root.password, "", false);
+                                    }
+                                }
+                            }
+                            // Strength meter: reserved height so the card does not jump while typing.
+                            HorizontalLayout {
+                                spacing: 12px;
+                                Rectangle {
+                                    height: 4px;
+                                    y: (parent.height - self.height) / 2;
+                                    background: Theme.border;
+                                    border-radius: 2px;
+                                    Rectangle {
+                                        x: 0px;
+                                        width: root.password == "" ? 0px : parent.width * (root.strength-score + 1) / 5;
+                                        background: root.strength-score >= 3 ? Theme.ok
+                                            : root.strength-score >= 2 ? Theme.muted : Theme.danger;
+                                        border-radius: 2px;
+                                        animate width { duration: 150ms; easing: ease-out; }
+                                        animate background { duration: 150ms; easing: ease-out; }
+                                    }
+                                }
+                                Label {
+                                    width: 84px;
+                                    text: root.password == "" ? "" : root.strength-label;
+                                    horizontal-alignment: right;
+                                }
+                            }
+                        }
+                        if root.creating: Field {
+                            label: "Repeat the master password";
+                            secret: true;
+                            text <=> root.confirm-password;
+                            accepted => {
+                                if (!root.busy) {
+                                    root.submit(root.vault-path, root.keyfile-path, root.password, root.confirm-password, true);
+                                }
+                            }
+                        }
+
+                        if root.notice != "": Banner { message: root.notice; }
+                        if root.error != "": Banner { message: root.error; error: true; }
+
+                        VerticalLayout {
+                            spacing: 8px;
+                            Btn {
+                                label: root.busy ? "Working…" : root.creating ? "Create vault" : "Unlock";
+                                primary: true;
+                                active: !root.busy;
+                                clicked => {
+                                    root.submit(root.vault-path, root.keyfile-path, root.password, root.confirm-password, root.creating);
+                                }
+                            }
+                            Btn {
+                                label: root.creating ? "I already have a vault" : "Create new vault";
+                                quiet: true;
+                                active: !root.busy;
+                                clicked => {
+                                    root.creating = !root.creating;
+                                }
+                            }
+                        }
+                        if root.keyfile-path == "": Label {
+                            text: "A keyfile is a second factor. If you lose it, the vault cannot be opened.";
+                            wrap: word-wrap;
+                            horizontal-alignment: center;
+                        }
+                        Label {
+                            text: root.capture-status;
+                            color: root.capture-ok ? Theme.muted : Theme.danger-hi;
+                            wrap: word-wrap;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ───────────── Vault view ─────────────
+    if root.unlocked: HorizontalLayout {
+        // Entry list.
+        Rectangle {
+            width: 320px;
+            background: Theme.sidebar;
+            VerticalLayout {
+                padding: 16px;
+                spacing: 12px;
+                // Search + add, one toolbar row.
+                HorizontalLayout {
+                    spacing: 8px;
+                    Field {
+                        placeholder: "Search";
+                        edited(t) => {
+                            root.search-edited(t);
+                        }
+                    }
+                    PlusIcon {
+                        clicked => {
+                            root.new-entry();
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: start;
+                    Chip {
+                        label: "All";
+                        active: root.filter == 0;
+                        clicked => {
+                            root.set-filter(0);
+                        }
+                    }
+                    Chip {
+                        label: "Servers";
+                        active: root.filter == 1;
+                        clicked => {
+                            root.set-filter(1);
+                        }
+                    }
+                    Chip {
+                        label: "Websites";
+                        active: root.filter == 2;
+                        clicked => {
+                            root.set-filter(2);
+                        }
+                    }
+                }
+                Label {
+                    text: root.count-label;
+                    font-weight: 600;
+                }
+                if root.import-notice != "": VerticalLayout {
+                    vertical-stretch: 0;
+                    spacing: 6px;
+                    Banner { message: root.import-notice; error: true; vertical-stretch: 0; }
+                    Btn {
+                        label: "Got it";
+                        quiet: true;
+                        height: 32px;
+                        clicked => {
+                            root.dismiss-import();
+                        }
+                    }
+                }
+                if root.entries.length == 0: Rectangle {
+                    vertical-stretch: 1;
+                    Text {
+                        width: parent.width - 16px;
+                        text: "No entries to show.\nAdd one with +, import a file, or change your search.";
+                        color: Theme.muted;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                    }
+                }
+                if root.entries.length > 0: ListView {
+                    for row[i] in root.entries: Rectangle {
+                        height: 56px;
+                        border-radius: Theme.radius;
+                        background: root.selected == i ? Theme.surface-hi
+                            : row-area.has-hover ? Theme.surface : transparent;
+                        animate background { duration: Theme.fast; easing: ease-out; }
+                        row-area := TouchArea {
+                            clicked => {
+                                root.select(i);
+                            }
+                        }
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 8px;
+                            spacing: 12px;
+                            VerticalLayout {
+                                alignment: center;
+                                Glyph {
+                                    size: 36px;
+                                    server: row.server;
+                                    icon: row.icon;
+                                    has-icon: row.has-icon;
+                                }
+                            }
+                            VerticalLayout {
+                                horizontal-stretch: 1;
+                                alignment: center;
+                                spacing: 2px;
+                                Text {
+                                    text: row.title;
+                                    color: Theme.text;
+                                    font-size: 14px;
+                                    font-weight: 600;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: row.subtitle;
+                                    color: Theme.muted;
+                                    font-size: 12px;
+                                    overflow: elide;
+                                }
+                            }
+                            // Servers: one click copies the password, no need to open the entry.
+                            if row.server: VerticalLayout {
+                                alignment: center;
+                                CopyIcon {
+                                    clicked => {
+                                        root.copy-row-password(i);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // Reserved line so clipboard feedback from the list never shifts the layout.
+                if root.pane != 0 || root.selected < 0: Text {
+                    height: 16px;
+                    text: root.status;
+                    color: root.status.starts-with("Could not") || root.status.starts-with("This entry") ? Theme.danger-hi : Theme.ok-hi;
+                    font-size: 12px;
+                    overflow: elide;
+                }
+                HorizontalLayout {
+                    spacing: 4px;
+                    Btn {
+                        label: "Generator";
+                        quiet: true;
+                        min-width: 0px;
+                        horizontal-stretch: 1;
+                        clicked => {
+                            root.open-generator(false);
+                        }
+                    }
+                    Btn {
+                        label: "Import";
+                        quiet: true;
+                        min-width: 0px;
+                        horizontal-stretch: 1;
+                        clicked => {
+                            root.import-file();
+                        }
+                    }
+                    Btn {
+                        label: "Settings";
+                        quiet: true;
+                        min-width: 0px;
+                        horizontal-stretch: 1;
+                        clicked => {
+                            root.open-settings();
+                        }
+                    }
+                    Btn {
+                        label: "Lock";
+                        quiet: true;
+                        min-width: 0px;
+                        horizontal-stretch: 1;
+                        clicked => {
+                            root.lock();
+                        }
+                    }
+                }
+            }
+        }
+
+        // 1px divider between the two layers.
+        Rectangle {
+            width: 1px;
+            background: Theme.border;
+        }
+
+        // Right-hand pane.
+        Rectangle {
+            // ─── Entry editor ───
+            if root.pane == 1: ScrollView {
+                VerticalLayout {
+                    padding: 40px;
+                    spacing: 16px;
+                    alignment: start;
+                    // Save and Cancel sit in the header so they never scroll out of view.
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Heading {
+                            text: root.form-editing ? "Edit entry" : "New entry";
+                            horizontal-stretch: 1;
+                            vertical-alignment: center;
+                        }
+                        Btn {
+                            label: "Cancel";
+                            quiet: true;
+                            clicked => {
+                                root.cancel-form();
+                            }
+                        }
+                        Btn {
+                            label: "Save";
+                            primary: true;
+                            min-width: 100px;
+                            clicked => {
+                                root.save-entry();
+                            }
+                        }
+                    }
+                    if root.error != "": Banner { message: root.error; error: true; }
+                    Segmented {
+                        options: ["Server", "Website"];
+                        current: root.form-server ? 0 : 1;
+                        selected(i) => {
+                            root.form-server = i == 0;
+                        }
+                    }
+                    // Keyboard: Tab between fields, Enter advances (and saves on the last one),
+                    // Escape cancels.
+                    Field {
+                        label: "Title";
+                        placeholder: root.form-server ? "e.g. Production RDP" : "e.g. Work email";
+                        text <=> root.form-title;
+                        init => {
+                            self.focus();
+                        }
+                        accepted => {
+                            form-target-field.focus();
+                        }
+                        escaped => {
+                            root.cancel-form();
+                        }
+                    }
+                    form-target-field := Field {
+                        label: root.form-server ? "Server" : "URL";
+                        placeholder: root.form-server ? "server.example.com or 10.0.0.5:3389" : "https://";
+                        text <=> root.form-target;
+                        accepted => {
+                            form-username-field.focus();
+                        }
+                        escaped => {
+                            root.cancel-form();
+                        }
+                    }
+                    form-username-field := Field {
+                        label: "Username";
+                        placeholder: root.form-server ? "DOMAIN\\user" : "name@example.com";
+                        text <=> root.form-username;
+                        accepted => {
+                            form-password-field.focus();
+                        }
+                        escaped => {
+                            root.cancel-form();
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 6px;
+                        form-password-field := Field {
+                            label: "Password";
+                            secret: true;
+                            text <=> root.form-password;
+                            accepted => {
+                                form-notes-field.focus();
+                            }
+                            escaped => {
+                                root.cancel-form();
+                            }
+                        }
+                        HorizontalLayout {
+                            alignment: start;
+                            Btn {
+                                label: "Generate a password…";
+                                quiet: true;
+                                height: 32px;
+                                clicked => {
+                                    root.open-generator(true);
+                                }
+                            }
+                        }
+                    }
+                    form-notes-field := Field {
+                        label: "Notes (optional)";
+                        multiline: true;
+                        text <=> root.form-notes;
+                        escaped => {
+                            root.cancel-form();
+                        }
+                    }
+                }
+            }
+
+            // ─── Settings ───
+            if root.pane == 2: ScrollView {
+                VerticalLayout {
+                    padding: 40px;
+                    spacing: 16px;
+                    alignment: start;
+                    Heading { text: "Settings"; }
+                    // Feedback sits at the top so it is seen whichever section was just used.
+                    if root.settings-error != "": Banner { message: root.settings-error; error: true; }
+                    if root.settings-message != "": Banner { message: root.settings-message; ok: true; }
+
+                    Label {
+                        text: "LOCKING AND CLIPBOARD";
+                        font-weight: 700;
+                    }
+                    Field {
+                        label: "Lock after this many seconds without input (30–7200)";
+                        text <=> root.settings-autolock;
+                    }
+                    Field {
+                        label: "Clear the clipboard this many seconds after copying (5–300)";
+                        text <=> root.settings-clipboard;
+                    }
+                    Switch {
+                        label: "Lock when the window is minimized";
+                        checked <=> root.settings-lock-min;
+                    }
+                    Btn {
+                        label: "Save settings";
+                        primary: true;
+                        width: 160px;
+                        clicked => {
+                            root.save-settings();
+                        }
+                    }
+
+                    Label {
+                        text: "SCREEN CAPTURE";
+                        font-weight: 700;
+                    }
+                    Banner {
+                        message: root.capture-status;
+                        error: !root.capture-ok;
+                        ok: root.capture-ok;
+                    }
+
+                    Label {
+                        text: "MASTER PASSWORD AND KEYFILE";
+                        font-weight: 700;
+                    }
+                    Field {
+                        label: "Current master password";
+                        secret: true;
+                        text <=> root.cred-current;
+                    }
+                    PathField {
+                        label: "Current keyfile (leave empty if the vault has none)";
+                        placeholder: "C:\\path\\to\\vault.argkey";
+                        text <=> root.cred-current-keyfile;
+                        browse => {
+                            root.browse-cred-keyfile(0);
+                        }
+                    }
+                    VerticalLayout {
+                        spacing: 8px;
+                        Field {
+                            label: "New master password";
+                            placeholder: "At least 10 characters";
+                            secret: true;
+                            text <=> root.cred-new;
+                            edited(t) => {
+                                root.password-edited(t);
+                            }
+                        }
+                        HorizontalLayout {
+                            spacing: 12px;
+                            Rectangle {
+                                height: 4px;
+                                y: (parent.height - self.height) / 2;
+                                background: Theme.border;
+                                border-radius: 2px;
+                                Rectangle {
+                                    x: 0px;
+                                    width: root.cred-new == "" ? 0px : parent.width * (root.strength-score + 1) / 5;
+                                    background: root.strength-score >= 3 ? Theme.ok
+                                        : root.strength-score >= 2 ? Theme.muted : Theme.danger;
+                                    border-radius: 2px;
+                                    animate width { duration: 150ms; easing: ease-out; }
+                                }
+                            }
+                            Label {
+                                width: 84px;
+                                text: root.cred-new == "" ? "" : root.strength-label;
+                                horizontal-alignment: right;
+                            }
+                        }
+                    }
+                    Field {
+                        label: "Repeat the new master password";
+                        secret: true;
+                        text <=> root.cred-confirm;
+                    }
+                    PathField {
+                        label: "New keyfile (optional)";
+                        placeholder: "C:\\path\\to\\vault.argkey";
+                        text <=> root.cred-new-keyfile;
+                        browse => {
+                            root.browse-cred-keyfile(1);
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+                        Btn {
+                            label: "Generate a new keyfile…";
+                            quiet: true;
+                            height: 32px;
+                            clicked => {
+                                root.new-keyfile();
+                            }
+                        }
+                    }
+                    if root.cred-new-keyfile != "": Banner {
+                        message: "Keep this keyfile safe and back it up. If you lose it, the vault cannot be opened — there is no recovery.";
+                        error: true;
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+                        Btn {
+                            label: root.settings-busy ? "Working…" : "Change master password / keyfile";
+                            active: !root.settings-busy;
+                            min-width: 260px;
+                            clicked => {
+                                root.change-credentials();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ─── Generator ───
+            if root.pane == 3: ScrollView {
+                VerticalLayout {
+                    padding: 40px;
+                    spacing: 16px;
+                    alignment: start;
+                    Heading { text: "Generator"; }
+                    Segmented {
+                        options: ["Password", "Passphrase"];
+                        current <=> root.gen-mode;
+                    }
+                    Rectangle {
+                        background: Theme.surface;
+                        border-radius: 12px;
+                        border-width: 1px;
+                        border-color: Theme.border;
+                        preferred-height: result-box.preferred-height + 40px;
+                        min-height: result-box.preferred-height + 40px;
+                        result-box := VerticalLayout {
+                            padding: 20px;
+                            spacing: 8px;
+                            Text {
+                                text: root.gen-error != "" ? root.gen-error : root.gen-result;
+                                color: root.gen-error != "" ? Theme.danger-hi : Theme.text;
+                                font-family: "Consolas";
+                                font-size: 17px;
+                                wrap: word-wrap;
+                            }
+                            Label { text: root.gen-entropy; }
+                        }
+                    }
+                    if root.gen-mode == 0: VerticalLayout {
+                        spacing: 8px;
+                        Stepper {
+                            label: "Length";
+                            minimum: 8;
+                            maximum: 128;
+                            step: 1;
+                            value <=> root.gen-length;
+                        }
+                        Switch {
+                            label: "Lowercase letters";
+                            checked <=> root.gen-lower;
+                        }
+                        Switch {
+                            label: "Uppercase letters";
+                            checked <=> root.gen-upper;
+                        }
+                        Switch {
+                            label: "Digits";
+                            checked <=> root.gen-digits;
+                        }
+                        Switch {
+                            label: "Symbols";
+                            checked <=> root.gen-symbols;
+                        }
+                        Switch {
+                            label: "Avoid look-alike characters (I l 1 O 0 o)";
+                            checked <=> root.gen-ambiguous;
+                        }
+                    }
+                    if root.gen-mode == 1: VerticalLayout {
+                        spacing: 8px;
+                        Stepper {
+                            label: "Words";
+                            minimum: 4;
+                            maximum: 20;
+                            step: 1;
+                            value <=> root.gen-words;
+                        }
+                        Field {
+                            label: "Separator";
+                            text <=> root.gen-separator;
+                            edited(_) => {
+                                root.regenerate();
+                            }
+                        }
+                        Switch {
+                            label: "Capitalize each word";
+                            checked <=> root.gen-capitalize;
+                        }
+                        Switch {
+                            label: "Add a number";
+                            checked <=> root.gen-number;
+                        }
+                    }
+                    if root.status != "": Text {
+                        text: root.status;
+                        color: root.status.starts-with("Could not") ? Theme.danger-hi : Theme.ok-hi;
+                        font-size: 13px;
+                        wrap: word-wrap;
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        padding-top: 8px;
+                        if root.gen-for-form: Btn {
+                            label: "Use this password";
+                            primary: true;
+                            min-width: 160px;
+                            clicked => {
+                                root.use-generated();
+                            }
+                        }
+                        if !root.gen-for-form: Btn {
+                            label: "Copy";
+                            primary: true;
+                            clicked => {
+                                root.copy-generated();
+                            }
+                        }
+                        Btn {
+                            label: "Another one";
+                            clicked => {
+                                root.regenerate();
+                            }
+                        }
+                        Btn {
+                            label: root.gen-for-form ? "Back" : "Close";
+                            quiet: true;
+                            clicked => {
+                                root.close-generator();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ─── Selected entry: centered header, then one card of label/value rows ───
+            if root.pane == 0 && root.selected >= 0: ScrollView {
+                VerticalLayout {
+                    padding-top: 40px;
+                    padding-bottom: 24px;
+                    padding-left: 32px;
+                    padding-right: 32px;
+                    alignment: start;
+                    HorizontalLayout {
+                        alignment: center;
+                        VerticalLayout {
+                            width: min(520px, root.width - 320px - 65px);
+                            spacing: 20px;
+
+                            VerticalLayout {
+                                spacing: 10px;
+                                Glyph {
+                                    size: 72px;
+                                    server: root.detail-server;
+                                    icon: root.detail-icon;
+                                    has-icon: root.detail-has-icon;
+                                    x: (parent.width - self.width) / 2;
+                                }
+                                Text {
+                                    text: root.detail-title;
+                                    color: Theme.text;
+                                    font-size: 22px;
+                                    font-weight: 700;
+                                    horizontal-alignment: center;
+                                    overflow: elide;
+                                }
+                                Label {
+                                    text: root.detail-server ? "Server" : "Website";
+                                    horizontal-alignment: center;
+                                }
+                            }
+
+                            Rectangle {
+                                background: Theme.surface;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: Theme.border;
+                                preferred-height: rows.preferred-height;
+                                min-height: rows.preferred-height;
+                                rows := VerticalLayout {
+                                    // Always visible; click copies.
+                                    if root.detail-server: DetailRow {
+                                        label: "Server";
+                                        value: root.detail-host;
+                                        interactive: true;
+                                        hover-changed(h) => {
+                                            root.row-hover = h;
+                                        }
+                                        activated => {
+                                            root.copy-host();
+                                        }
+                                    }
+                                    DetailRow {
+                                        label: "Username";
+                                        value: root.detail-username;
+                                        interactive: true;
+                                        hover-changed(h) => {
+                                            root.row-hover = h;
+                                        }
+                                        activated => {
+                                            root.copy-username();
+                                        }
+                                    }
+                                    // Hover shows the password, click copies it. Plain `Text` is not
+                                    // selectable, so the copy always goes through the protected path.
+                                    DetailRow {
+                                        label: "Password";
+                                        value: root.revealed == "" ? "••••••••••••" : root.revealed;
+                                        mono: true;
+                                        interactive: true;
+                                        last: root.detail-server;
+                                        hover-changed(h) => {
+                                            root.row-hover = h;
+                                            // Idempotent: reveal on enter, hide on leave.
+                                            if (h != (root.revealed != "")) {
+                                                root.toggle-reveal();
+                                            }
+                                        }
+                                        activated => {
+                                            root.copy-password();
+                                        }
+                                    }
+                                    if !root.detail-server: DetailRow {
+                                        label: "Website";
+                                        value: root.detail-url;
+                                        last: true;
+                                    }
+                                }
+                                // Time left on the current code; turns red for the last five seconds.
+                            }
+
+                            if root.detail-has-notes: VerticalLayout {
+                                spacing: 8px;
+                                HorizontalLayout {
+                                    alignment: start;
+                                    Btn {
+                                        label: root.notes-revealed == "" ? "Show notes" : "Hide notes";
+                                        quiet: true;
+                                        height: 32px;
+                                        clicked => {
+                                            root.toggle-notes();
+                                        }
+                                    }
+                                }
+                                if root.notes-revealed != "": Rectangle {
+                                    background: Theme.surface;
+                                    border-radius: Theme.radius;
+                                    border-width: 1px;
+                                    border-color: Theme.border;
+                                    preferred-height: notes-text.preferred-height + 24px;
+                                    min-height: notes-text.preferred-height + 24px;
+                                    notes-text := Text {
+                                        x: 12px;
+                                        y: 12px;
+                                        width: parent.width - 24px;
+                                        text: root.notes-revealed;
+                                        color: Theme.text;
+                                        font-size: 14px;
+                                        wrap: word-wrap;
+                                    }
+                                }
+                            }
+
+                            // Reserved line so clipboard feedback never shifts the layout.
+                            Text {
+                                height: 18px;
+                                text: root.status != "" ? root.status : root.row-hover ? "Click to copy" : "";
+                                // Red for failures ("Could not…", "This entry has no…"), green otherwise;
+                                // the hover hint is neutral.
+                                color: root.status == "" ? Theme.muted
+                                    : root.status.starts-with("Could not") || root.status.starts-with("This entry") ? Theme.danger-hi : Theme.ok-hi;
+                                font-size: 13px;
+                                horizontal-alignment: center;
+                                overflow: elide;
+                            }
+
+                            HorizontalLayout {
+                                alignment: center;
+                                spacing: 8px;
+                                Btn {
+                                    label: "Edit";
+                                    clicked => {
+                                        root.edit-selected();
+                                    }
+                                }
+                                Btn {
+                                    label: root.confirm-delete ? "Confirm delete" : "Delete entry";
+                                    danger: root.confirm-delete;
+                                    quiet-danger: !root.confirm-delete;
+                                    clicked => {
+                                        if (root.confirm-delete) {
+                                            root.confirm-delete = false;
+                                            root.delete-selected();
+                                        } else {
+                                            root.confirm-delete = true;
+                                        }
+                                    }
+                                }
+                                if root.confirm-delete: Btn {
+                                    label: "Keep";
+                                    quiet: true;
+                                    clicked => {
+                                        root.confirm-delete = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ─── Empty state ───
+            if root.pane == 0 && root.selected < 0: VerticalLayout {
+                alignment: center;
+                spacing: 8px;
+                Text {
+                    text: "Nothing selected";
+                    color: Theme.text;
+                    font-size: 16px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Pick an entry from the list, or create a new one.";
+                    color: Theme.muted;
+                    horizontal-alignment: center;
+                }
+                if root.status != "": Text {
+                    text: root.status;
+                    color: root.status.starts-with("Could not") || root.status.starts-with("This entry") ? Theme.danger-hi : Theme.ok-hi;
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+    }
+}

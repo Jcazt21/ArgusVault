@@ -1,0 +1,44 @@
+Bundled website and tool icons
+=============================
+
+These 50 SVG files are embedded in the program (`src/icons.rs`) and shown next to website entries
+whose URL (or title) matches. Nothing is downloaded at run time.
+
+Source:   Simple Icons, https://simpleicons.org  (npm package `simple-icons`)
+Version:  16.35.0 (fetched 2026-10-16 from the jsDelivr copy of that package)
+Licence:  CC0 1.0 for the collection (see LICENSE-simple-icons.txt).
+          The upstream disclaimer (DISCLAIMER-simple-icons.txt) says CC0 does not imply that every
+          brand mark inside it is free of other terms, and that users should check per-icon
+          licence data and brand guidelines.
+
+Trademarks
+----------
+Every logo here is a trademark of its owner. Argus Vault is not affiliated with, endorsed by or
+sponsored by any of them. The icons are used only to identify the website or tool an entry belongs
+to (nominative use) and are shown tinted in one neutral colour.
+
+NOT YET CHECKED: the per-icon licence and brand-guideline fields of Simple Icons' data file could
+not be fetched when these were added. Before a public release, check those fields for the 50 icons
+below and remove any whose terms do not allow this use.
+
+Icons (file name = Simple Icons slug)
+-------------------------------------
+github gitlab gitea bitbucket vault portainer docker kubernetes grafana prometheus jenkins
+proxmox vmware nginx ansible terraform sentry tailscale nextcloud bitwarden jira confluence
+notion trello figma zoom okta cloudflare digitalocean hetzner godaddy namecheap vercel netlify
+google gmail googledrive apple facebook instagram x youtube reddit discord telegram whatsapp
+paypal stripe dropbox protonmail
+
+Not available in Simple Icons 16.35.0 (removed at the brands' request): Microsoft, LinkedIn,
+Slack, Amazon/AWS, Adobe, OpenAI. Entries for those sites show the generic globe.
+
+Adding or updating an icon
+--------------------------
+1. Download the SVG from the pinned package version above and inspect it: it must be a single
+   <svg> with one <path>, no scripts, event handlers, links or embedded images (src/icons.rs has a
+   test that every file loads, and a size limit).
+2. Put it here as <slug>.svg and add a line to the table in src/icons.rs (domains it stands for,
+   and the names that identify it in a host label or a title).
+3. Self-hosted tools (GitLab, Vault, Portainer...) are matched by a host label and must also be
+   listed in SELF_HOSTED. Public sites are matched by domain only, so a lookalike host never shows
+   the real site's logo.

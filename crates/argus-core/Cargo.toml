@@ -1,0 +1,29 @@
+[package]
+name = "argus-core"
+description = "Argus Vault core: cryptography, vault format and domain logic (no UI, no network, no unsafe)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[features]
+# Exposes internal parsers for cargo-fuzz. Never enable in release builds.
+fuzzing = []
+
+[dependencies]
+argon2.workspace = true
+blake2.workspace = true
+chacha20poly1305.workspace = true
+getrandom.workspace = true
+hmac.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+unicode-normalization.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

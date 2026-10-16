@@ -1,0 +1,26 @@
+[package]
+name = "argus-app"
+description = "Argus Vault desktop application (Slint GUI)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[dependencies]
+argus-core = { path = "../argus-core" }
+argus-platform = { path = "../argus-platform" }
+# Default features are off: no OpenGL/Skia renderers, no system tray. The
+# software renderer keeps the dependency tree small and the GPU out of the
+# trust boundary.
+slint = { version = "1.18", default-features = false, features = ["std", "compat-1-2", "backend-winit", "renderer-software", "raw-window-handle-06"] }
+# Already in the tree through Slint; used only to read the native window handle.
+raw-window-handle = "0.6"
+zeroize.workspace = true
+
+[build-dependencies]
+slint-build = "1.18"
+
+[lints]
+workspace = true

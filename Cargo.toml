@@ -1,0 +1,60 @@
+[workspace]
+resolver = "2"
+members = ["crates/argus-core", "crates/argus-platform", "crates/argus-app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+publish = false
+license = "GPL-3.0-only"
+
+[workspace.dependencies]
+argon2 = { version = "0.5", default-features = false, features = ["alloc", "zeroize"] }
+blake2 = { version = "0.10", default-features = false, features = ["std"] }
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+getrandom = { version = "0.2", default-features = false, features = ["std"] }
+hmac = { version = "0.12", default-features = false }
+sha1 = { version = "0.10", default-features = false }
+sha2 = { version = "0.10", default-features = false }
+zeroize = { version = "1", default-features = false, features = ["alloc", "derive"] }
+unicode-normalization = { version = "0.1", default-features = false, features = ["std"] }
+proptest = { version = "1", default-features = false, features = ["std"] }
+
+[workspace.lints.rust]
+# `unsafe_code` is set per crate: `forbid` in argus-core, `deny` in argus-app (Slint-generated
+# code needs `unsafe` and opts in with a local `allow`), and the platform crate documents each block.
+missing_debug_implementations = "warn"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+mem_forget = "deny"
+module_name_repetitions = "allow"
+
+# Hardened release build.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+overflow-checks = true
+debug = false
+strip = true
+incremental = false
+
+# Argon2 / BLAKE2 are unusably slow unoptimized; keep tests fast.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
+[profile.dev.package.chacha20poly1305]
+opt-level = 3

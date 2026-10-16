@@ -1,0 +1,51 @@
+[package]
+name = "argus-platform"
+description = "Argus Vault Windows integration: protected clipboard, capture protection, idle and session watching. The only crate allowed to use `unsafe`."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+# Same version Slint already pulls in, so the tree does not gain a second copy.
+windows = { version = "0.62", default-features = false, features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_Controls_Dialogs",
+    "Win32_Security",
+    "Win32_System_DataExchange",
+    "Win32_System_ErrorReporting",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_Ole",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+zeroize.workspace = true
+
+# Not `workspace = true`: a crate that inherits the workspace lint table cannot add its own, and
+# this one needs the two `unsafe` lints below on top of the shared strict set. Keep the rest in
+# sync with `[workspace.lints]` in the root Cargo.toml.
+[lints.rust]
+missing_debug_implementations = "warn"
+unused_must_use = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+mem_forget = "deny"
+module_name_repetitions = "allow"
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "deny"

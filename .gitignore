@@ -1,0 +1,42 @@
+/target
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+/fuzz/coverage
+*.argus
+*.argus.tmp
+*.argus.bak
+*.argkey
+
+# Vaults, keyfiles and backups of any name or extension we use: never commit real or test secrets.
+*.argus.*
+*.argkey.*
+*.kdbx
+*.pfx
+*.p12
+*.pem
+*.key
+.env
+.env.*
+
+# Local AI-assistant tooling and its skills (not part of the app).
+/.agents/
+/skills/
+/.claude/
+/.cursor/
+/.antigravity/
+/CLAUDE.md
+/AGENTS.md
+
+# Editor and OS files.
+/.vscode/
+/.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Output of the headless UI screenshots (see crates/argus-app/src/snapshots.rs).
+*.bmp
+/snapshots/
+/shots/
