@@ -451,18 +451,11 @@ export component CopyIcon inherits Rectangle {
 }
 
 // Argus: the many-eyed watchman. A single open eye, drawn with plain shapes.
-export component Mark inherits Rectangle {
+export component Mark inherits Image {
     width: 40px;
     height: 40px;
-    border-radius: 20px;
-    border-width: 2px;
-    border-color: Theme.accent;
-    Rectangle {
-        width: 14px;
-        height: 14px;
-        border-radius: 7px;
-        background: Theme.accent;
-    }
+    source: @image-url("../assets/logo.svg");
+    colorize: Theme.accent;
 }
 
 // Small filter pill.

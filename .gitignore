@@ -1,6 +1,8 @@
 /target
 /fuzz/target
-/fuzz/corpus
+/fuzz/corpus/*/*
+!/fuzz/corpus/*/*.bin
+!/fuzz/corpus/*/*.txt
 /fuzz/artifacts
 /fuzz/coverage
 *.argus

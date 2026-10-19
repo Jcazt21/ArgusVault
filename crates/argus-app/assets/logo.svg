@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="416 135 420 420" width="512" height="512" role="img" aria-label="ArgusVault" xmlns:c2pa="http://c2pa.org/manifest">
+  <title>ArgusVault</title>
+  <defs>
+    <!-- Los "huecos" (anillo, ojo, tallo) son transparentes: funciona sobre cualquier fondo -->
+    <mask id="body-mask" maskUnits="userSpaceOnUse" x="416" y="135" width="420" height="420">
+      <!-- silueta del cuerpo: alas + círculo -->
+      <path fill="#fff" d="M443 338 Q480 318 530 303 H722 Q772 318 809 338 V398
+                           Q810 450 752 487 Q700 535 626 540 Q552 535 500 487 Q442 450 443 398 Z"/>
+      <!-- anillo de separación -->
+      <path fill="none" stroke="#000" stroke-width="16"
+            d="M503 484 A145 120 0 0 1 481 420 V352 Q626 216 771 352 V420 A145 120 0 0 1 749 484"/>
+      <!-- esclera del ojo -->
+      <path fill="#000" d="M507 352 Q626 296 745 352 L752 372 Q690 410 640 432 H612 Q562 410 500 372 Z"/>
+      <!-- pupila -->
+      <circle cx="626" cy="373" r="34" fill="#fff"/>
+      <!-- tallo -->
+      <rect x="618" y="428" width="16" height="114" fill="#000"/>
+    </mask>
+  </defs>
+
+  <g fill="currentColor">
+    <!-- arco del candado -->
+    <path d="M493 300 V283 A133 133 0 0 1 759 283 V300 H709 V283 A83 83 0 0 0 543 283 V300 Z"/>
+    <!-- cuerpo con ojo -->
+    <rect x="416" y="135" width="420" height="420" mask="url(#body-mask)"/>
+  </g>
+</svg>

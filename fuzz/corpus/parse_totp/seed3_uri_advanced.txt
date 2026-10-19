@@ -1,0 +1,1 @@
+otpauth://totp/ACME:user?secret=HXDMVJECJJWSRB3HWIZR4IFUGFTMXBOZ&issuer=ACME&algorithm=SHA256&digits=8&period=60

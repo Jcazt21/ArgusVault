@@ -1,0 +1,7 @@
+# Cargo configuration for Argus Vault
+# Enables Control Flow Guard (CFG) for MSVC targets.
+# Note: In CI or environments where RUSTFLAGS environment variable is defined,
+# RUSTFLAGS takes precedence, so CI must also include `-C control-flow-guard`.
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "control-flow-guard"]
