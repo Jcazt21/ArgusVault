@@ -24,15 +24,11 @@ jobs:
       - name: Package
         shell: pwsh
         run: |
-          $name = "ArgusVault-${{ github.ref_name }}-windows-x64"
-          New-Item -ItemType Directory $name | Out-Null
-          Copy-Item target/release/argus-app.exe, LICENSE, README.md $name
-          Compress-Archive -Path $name -DestinationPath "$name.zip"
-          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
-          "$hash  $name.zip" | Out-File "$name.zip.sha256" -Encoding ascii
-          "ASSET=$name.zip" | Out-File $env:GITHUB_ENV -Append -Encoding ascii
+          Copy-Item target/release/argus-app.exe ArgusVault.exe
+          $hash = (Get-FileHash ArgusVault.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  ArgusVault.exe" | Out-File ArgusVault.exe.sha256 -Encoding ascii
       - name: Create release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" $env:ASSET "$env:ASSET.sha256" --generate-notes --title "${{ github.ref_name }}"
+        run: gh release create "${{ github.ref_name }}" ArgusVault.exe ArgusVault.exe.sha256 --generate-notes --title "${{ github.ref_name }}"
